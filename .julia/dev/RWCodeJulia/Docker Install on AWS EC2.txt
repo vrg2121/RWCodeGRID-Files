@@ -1,0 +1,42 @@
+Docker Install on AWS EC2
+
+Pre-req:
+- download gitbash on local system
+- have an AWS account
+
+1. Launch and AWS EC2 Linus
+    In AWS
+	i. select the free tier
+	ii. set up an ssh key and save to folder
+    In Bash
+	i. cd aws/key
+	ii. ls # check that the .pem is there
+    In AWS
+	i. launch the instance
+	ii. wait for the instance to connect
+	iii. open SSH client
+	iv. directly copy the example
+    In Bash
+	i. paste the example code into the gitbash terminal
+	ii. yes
+	iii. sudo yum update
+
+2. put docker on the instance (all in bash)
+	- sudo yum install docker
+	  y
+	- sudo service docker start
+	  y
+	- docker info
+	  permission denied
+
+3. install docker on the admin (all in bash)
+	- sudo usermod -aG docker ec2-user
+	- sudo yum install docker
+	- sudo reboot
+
+4. start up docker on the ec2 instance
+	- paste example again
+	- docker info (check that it's in it)
+	- sudo service docker start
+
+	

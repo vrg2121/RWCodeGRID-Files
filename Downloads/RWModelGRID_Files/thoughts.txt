@@ -1,0 +1,188 @@
+solve_transition_eq
+
+1. function loads in all external information with well defined types
+2. Initialize variables and Matrices / Vectors to be filled
+3. set inital guesses for paths 
+4. Solve transition path
+    a. start outer while loop
+    b. update prices and paths using the guesses (these will be modified throughout)
+    c. solve the eletricity market for transiton
+        i. multi-threads the solving of the model for each capT (same as MATLAB)
+
+Most modern techniques are using deep learning to solve this...
+
+What if I made little packages of the threads, so a package of threads could be allocated
+    at the beginning of solving the market (say 2 packets of 10 threads each)
+    so 20 threads are solving for the first k (capT solves)
+    and 20 threads are solving for the second k (capT solves)
+    then 2capT is being solved simultaneously
+
+Also, maybe a lot of my allocation errors can be solved by reducing how much I use global variables
+    for example
+
+    INSTEAD OF:
+        b = 1.0
+        function g(a)
+            global b
+            tmp = a
+            for i in 1:1_000_000
+                tmp = tmp + a + b
+            end
+            return tmp
+        end
+    
+    USE:
+        function g(a, b)
+            tmp = a
+            for i in 1:1_000_000
+                tmp = tmp + a + b
+            end
+            return tmp
+        end
+
+    MarketFunctions.jl - 7
+    SteadyStateExogFunc.jl - 17
+    SteadyStateFunctions - 25
+    
+
+#################################################################################
+BENCHMARKING FOR TransitionFunctions
+
+# --------------------------- Check Resource Usage --------------------------- #
+wd = pwd()
+D = "$wd/Data"
+G = "$wd/Guesses"
+R = "$wd/Results"
+using JLD2
+P = jldopen("$D/Params/P_1.jld2", "r")["P"]; # 565138336 bytes = 565 MB
+import ..ModelConfiguration: ModelConfig
+config = ModelConfig(1, 0, 0, 0, 100, 100, 0, [2.0, 4.0, 6.0])
+
+
+import ..DataLoads: load_data
+DL = load_data(P, D); #DataLoads.jl; 475705825 bytes = 475 MB
+import ..Market: solve_market
+M = solve_market(P, DL, config, G); # 1303992 bytes = 1.3 MB
+import ..SteadyState: solve_steadystate
+S = solve_steadystate(P, DL, M, config, G); # 963720 bytes = 0.964 MB
+
+using Profile, BenchmarkTools
+# --------------------------- Check Resource Usage --------------------------- #
+
+    # --------------------------- Check Resource Usage --------------------------- #
+
+    R_LR = DL.R_LR
+    GsupplyCurves = DL.GsupplyCurves
+    decayp = P.decayp
+    T = P.T
+    params = P.params
+    sseq = S.sseq
+    KR_init_S = DL.KR_init_S
+    KR_init_W = DL.KR_init_W
+    mrkteq = M.mrkteq
+    Initialprod = config.Initialprod
+    RWParams = DL.RWParams
+    curtailmentswitch = P.curtailmentswitch
+    p_KR_bar_init = M.p_KR_bar_init
+    laboralloc_init = M.laboralloc_init
+    regionParams = DL.regionParams
+    majorregions = P.majorregions
+    Linecounts = P.Linecounts
+    linconscount = P.linconscount
+    kappa = P.kappa
+    regions = P.regions
+    Transiter = 2 # for testing purposes only
+    st = zeros(P.params.J, P.T + 1)
+    hoursofstorage = config.hoursofstorage
+    pB_shifter = P.pB_shifter
+    g = P.g
+    wage_init = DL.wage_init
+    p_KR_init_S = M.p_KR_init_S
+    p_KR_init_W = M.p_KR_init_W
+    p_F_int = M.p_F_int
+    interp3 = S.interp3
+    # --------------------------- Check Resource Usage --------------------------- #
+
+######################################################################################
+OPTIMIZAING STEADYSTATE CODE
+
+# --------------------------- Check Resource Usage --------------------------- #
+R_LR = DL.R_LR
+T = P.T
+params = P.params
+mrkteq = M.mrkteq
+Initialprod = config.Initialprod
+RWParams = DL.RWParams
+curtailmentswitch = P.curtailmentswitch
+regionParams = DL.regionParams
+majorregions = P.majorregions
+Linecounts = P.Linecounts
+linconscount = P.linconscount
+kappa = P.kappa
+pB_shifter = P.pB_shifter
+RunBatteries = config.RunBatteries
+RunCurtailment = config.RunCurtailment
+# --------------------------- Check Resource Usage --------------------------- #
+
+# --------------------------- Check Resource Usage --------------------------- #
+wd = pwd()
+D = "$wd/Data"
+G = "$wd/Guesses"
+R = "$wd/Results"
+using JLD2
+P = jldopen("$D/Params/P_1.jld2", "r")["P"]; # 565138336 bytes = 565 MB
+import ..ModelConfiguration: ModelConfig
+config = ModelConfig(1, 0, 0, 0, 100, 100, 0, [2.0, 4.0, 6.0])
+
+
+import ..DataLoads: load_data
+DL = load_data(P, D); #DataLoads.jl; 475705825 bytes = 475 MB
+import ..Market: solve_market
+M = solve_market(P, DL, config, G); # 1303992 bytes = 1.3 MB
+
+import Interpolations: interpolate, Gridded, Linear
+x = range(start = 0.0, stop = 1.0, step = 0.05) 
+y = range(start = 0.0, stop = 1.0, step = 0.05) 
+z = range(start = 0.0, stop = 12.0, step = 6.0)
+
+interp3 = interpolate((x, y, z), DL.curtmat, Gridded(Linear()))
+
+using Profile, BenchmarkTools
+# --------------------------- Check Resource Usage --------------------------- #
+
+################################################################################
+ MARKET FUNCTIONS 
+# --------------------------- Check Resource Usage --------------------------- #
+R_LR = DL.R_LR
+params = P.params
+RWParams = DL.RWParams
+regionParams = DL.regionParams
+majorregions = P.majorregions
+Linecounts = P.Linecounts
+linconscount = P.linconscount
+kappa = P.kappa
+wage_init = DL.wage_init
+KR_init_S = DL.KR_init_S
+KR_init_W = DL.KR_init_W
+sectoralempshares = DL.sectoralempshares
+regions = P.regions
+updw_w = P.updw_w
+upw_z = P.upw_z
+# --------------------------- Check Resource Usage --------------------------- #
+
+# --------------------------- Check Resource Usage --------------------------- #
+wd = pwd()
+D = "$wd/Data"
+G = "$wd/Guesses"
+R = "$wd/Results"
+using JLD2
+P = jldopen("$D/Params/P_1.jld2", "r")["P"]; # 565138336 bytes = 565 MB
+import ..ModelConfiguration: ModelConfig
+config = ModelConfig(1, 0, 0, 0, 100, 100, 0, [2.0, 4.0, 6.0])
+
+
+import ..DataLoads: load_data
+DL = load_data(P, D); #DataLoads.jl; 475705825 bytes = 475 MB
+
+using Profile, BenchmarkTools
+# --------------------------- Check Resource Usage --------------------------- #
